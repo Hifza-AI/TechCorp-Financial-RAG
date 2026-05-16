@@ -1,43 +1,43 @@
-import pandas as pd
-import sqlite3
 import os
+from langchain_community.document_loaders import DirectoryLoader, PyMuPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
-# Raste (Paths) set karein
-BASE_DIR = os.getcwd()
-CSV_FOLDER = os.path.join(BASE_DIR, "data", "raw_csv")
-DB_DIR = os.path.join(BASE_DIR, "database")
-DB_PATH = os.path.join(DB_DIR, "financial_data.db")
+BASE_DIR = r"C:\Users\riaze\Desktop\TechCorp-Financial-RAG"
+DATA_PATH = os.path.join(BASE_DIR, "data", "pdfs")
 
-def start_ingestion():
-    # Agar database folder nahi hai toh bana do
-    if not os.path.exists(DB_DIR):
-        os.makedirs(DB_DIR)
+print(f"📁 Checking directory path: {DATA_PATH}")
+if not os.path.exists(DATA_PATH):
+    print("❌ ERROR: Path exist nahi karta!")
+else:
+    print(f"✅ Folder mil gaya! Iske andar {len(os.listdir(DATA_PATH))} subfolders hain.")
 
-    # Database se dosti (connection) karein
-    conn = sqlite3.connect(DB_PATH)
-    print("🔗 SQL Database se connection ban gaya hai...")
+print("\n🚀 1. PyMuPDFLoader se 250 PDFs ko JET ki raftar se load kar rahe hain...")
 
-    # Har file ko table mein convert karein
-    files = {
-        'googl_income_statement.csv': 'income_statement',
-        'googl_balance_sheet.csv': 'balance_sheet',
-        'googl_cash_flow_statement.csv': 'cash_flow',
-        'googl_daily_prices.csv': 'stock_prices'
-    }
+# PyMuPDFLoader lagane se speed 10 guna tez ho jayegi!
+loader = DirectoryLoader(
+    DATA_PATH,
+    glob="**/*.pdf",
+    loader_cls=PyMuPDFLoader,
+    show_progress=True
+)
 
-    for file_name, table_name in files.items():
-        path = os.path.join(CSV_FOLDER, file_name)
-        if os.path.exists(path):
-            print(f"📥 {file_name} ko database mein dal raha hoon...")
-            df = pd.read_csv(path)
-            # Data ko SQL mein convert karein
-            df.to_sql(table_name, conn, if_exists='replace', index=False)
-            print(f"✅ {table_name} table ready hai!")
-        else:
-            print(f"❌ Error: {file_name} nahi mili!")
+documents = loader.load()
+print(f"\n✅ Documents load ho gaye! Total Pages extracted: {len(documents)}")
 
-    conn.close()
-    print(f"\n🚀 Mubarak ho! Database ban gaya: {DB_PATH}")
+if len(documents) > 0:
+    print("\n✂️ 2. Text splitting aur chunking shuru ho rahi hai...")
+    text_splitter = RecursiveCharacterTextSplitter(
+        chunk_size=1000,
+        chunk_overlap=200,
+        length_function=len
+    )
 
-if __name__ == "__main__":
-    start_ingestion()
+    chunks = text_splitter.split_documents(documents)
+
+    print("\n==============================================")
+    print(f"🔥 FINAL RESULTS: Total Chunks bane hain 👉 {len(chunks)} 👈")
+    print("==============================================")
+
+    if len(chunks) > 0:
+        print("\n📝 Sample Chunk 1 ka content:")
+        print(chunks[0].page_content[:300])
