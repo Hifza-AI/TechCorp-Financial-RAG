@@ -42,7 +42,7 @@ for index, chunk in enumerate(data_stream, start=1):
 
 end_time = time.time()
 print("\n" + "="*60)
-print("✅ CLASS 1 SUCCESS: All rows verified smoothly!")
+print("✅ CLASS 1 SUCCESS: All rows verified smoothly")
 print(f"⚡ Total Rows Processed: {total_rows:,}")
 print(f"⏱️ Time Taken: {end_time - start_time:.2f} Seconds")
 print("="*60)
