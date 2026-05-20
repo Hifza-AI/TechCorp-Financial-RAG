@@ -90,7 +90,7 @@ def generate_sql_from_llm(user_question):
 # 🏃 LIVE APP ENGINE GATEWAY
 # ------------------------------------------------------------
 if __name__ == "__main__":
-    user_prompt = "Find the top 3 countries with the highest customer spending"
+    user_prompt = "Show the total number of failed payments grouped by company name."
     print(f"\n🗣️ User Question: '{user_prompt}'")
     
     sql_code = generate_sql_from_llm(user_prompt)
