@@ -6,7 +6,7 @@ import config  # Jo config file tumne abhi banayi
 
 # Apne modules ko import karein
 from retrieval.query_router import classify_query
-from retrieval.sql_agent import get_sql_answer
+from RAG_Trash_Backup.sql_agent import get_sql_answer
 from retrieval.pdf_agent import get_pdf_answer
 
 # 1. Setup & Page Config
