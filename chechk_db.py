@@ -1,6 +1,6 @@
 import sqlite3
 
-# 🎯 FIX: Folder ka sahi path de diya hamne yahan
+# 🎯 FIX: Folder ka sahi path de diya hamne yahan:
 db_path = "data/csv/financial_enterprise.db" 
 
 conn = sqlite3.connect(db_path)

@@ -1,4 +1,5 @@
 import os
+import sys
 import sqlite3
 import re
 from dotenv import load_dotenv
@@ -7,8 +8,14 @@ from langchain_chroma import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # 1. Setup AUTOMATIC absolute paths
+# 1. Setup AUTOMATIC absolute paths
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV_PATH = os.path.join(BASE_DIR, ".env")
+
+# Fallback check: Agar run context badle toh local path check kare
+if not os.path.exists(ENV_PATH):
+    ENV_PATH = os.path.join(os.getcwd(), ".env")
+
 load_dotenv(dotenv_path=ENV_PATH)
 
 DB_PATH = os.path.join(BASE_DIR, "data", "csv", "financial_enterprise.db")
@@ -25,7 +32,22 @@ embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 vector_db = Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)
 print("✅ Vector DB Connected Successfully!")
 
-# --- CORE BACKEND ENGINES ---
+# --- DYNAMIC SCHEMA INTEGRATION ---
+def get_db_schema():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, sql FROM sqlite_master WHERE type='table';")
+        tables = cursor.fetchall()
+        conn.close()
+        schema_text = ""
+        for table_name, schema_sql in tables:
+            if table_name != 'sqlite_sequence':
+                schema_text += f"\nTable: {table_name}\n{schema_sql}\n"
+        return schema_text
+    except Exception:
+        # Fallback tracking schema if DB file initializing
+        return "Table: customers (customer_id, country, loyalty_score), Table: orders (order_id, customer_id, company_id, total_price_usd, profit_usd, order_date), Table: companies (company_id, company_name)"
 
 def run_sql_query(sql):
     try:
@@ -39,15 +61,32 @@ def run_sql_query(sql):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-def get_db_schema():
-    return """
-    Table: customers -> Columns: customer_id, gender, age, country, loyalty_score
-    Table: companies -> Columns: company_id, company_name (Values: 'Samsung', 'Apple', 'Nvidia', 'Tesla', 'Microsoft', 'JPMorgan Chase', 'Goldman Sachs', etc.)
-    Table: orders -> Columns: order_id, customer_id, company_id, total_price_usd, profit_usd, order_date
-    Table: payments -> Columns: payment_id, order_id, payment_status ('Completed', 'Pending', 'Failed'), payment_method ('Credit Card', 'PayPal', 'Debit Card', 'Apple Pay', 'Bank Transfer')
-    Table: shipping -> Columns: shipping_id, order_id, shipping_method, shipping_cost_usd, delivery_days, delivery_status
+# --- 🚀 METADATA EXTRACTION & ENGINE SAFEGUARDS ---
+def extract_metadata_filters(user_question):
     """
+    Advanced Enterprise Feature: Extracts strict metadata targets 
+    from the question to avoid ChromaDB vector overlap.
+    """
+    # Simple regex parsing for years between 2010 and 2030
+    year_match = re.search(r'\b(20\d{2})\b', user_question)
+    target_year = year_match.group(1) if year_match else None
+    
+    # Standard portfolio company mappings
+    companies_list = ['MCDONALD', 'MICROSOFT', 'GOOGLE', 'ALPHABET', 'IBM', 'JPMORGAN', 'GOLDMAN', 'APPLE', 'TESLA', 'SAMSUNG', 'NVIDIA']
+    target_company = None
+    
+    for comp in companies_list:
+        if re.search(r'\b' + comp + r'\b', user_question.upper()):
+            target_company = comp if comp != 'ALPHABET' else 'GOOGLE'
+            break
+            
+    meta_filter = {}
+    if target_year:
+        meta_filter["year"] = str(target_year)
+    # Flexible keyword match helper for nested dictionaries
+    return meta_filter
 
+# --- CORE BACKEND SUB-ENGINES ---
 def execute_sql_pipeline(user_question):
     print("💻 [SQL Sub-Engine] Generating Executable SQL Query...")
     sql_prompt = f"""
@@ -56,9 +95,9 @@ def execute_sql_pipeline(user_question):
     LAWS FOR STABLE SQL:
     1. Output ONLY raw executable SQL string. No markdown blocks (```sql), no explanations.
     2. Always append LIMIT 5 unless specified otherwise.
-    3. Use explicit table aliases and joins (e.g., o for orders, c for companies, p for payments, s for shipping, cu for customers).
+    3. Use explicit short table aliases and joins (o for orders, c for companies, p for payments, s for shipping, cu for customers).
     4. DATE FILTERING: Always use 'orders.order_date' for any year/date filters. Never apply date functions on IDs.
-    5. For text filters like payment_status, delivery_status or payment_method, always use 'LIKE' with wildcards (e.g., LIKE '%Completed%').
+    5. Always use LIKE with wildcards for text fields (e.g., LIKE '%Completed%').
     
     Question: {user_question}
     """
@@ -70,9 +109,9 @@ def execute_sql_pipeline(user_question):
     
     sql_query = re.sub(r"```sql|```", "", sql_query).strip()
     
-    # Force fix mechanism for common date mistakes
-    if "T1.order_id" in sql_query and "STRFTIME" in sql_query:
-        sql_query = sql_query.replace("T1.order_id", "T1.order_date")
+    # Injection corrections
+    if "o.order_id" in sql_query and "STRFTIME" in sql_query:
+        sql_query = sql_query.replace("o.order_id", "o.order_date")
     elif "orders.order_id" in sql_query and "STRFTIME" in sql_query:
         sql_query = sql_query.replace("orders.order_id", "orders.order_date")
         
@@ -83,10 +122,16 @@ def execute_sql_pipeline(user_question):
 def execute_pdf_pipeline(user_question):
     print("📂 [PDF Sub-Engine] Fetching Corporate Knowledge Document Chunks...")
     
-    # 🎯 REMOVED THE STRICT METADATA FILTER THAT BLOCKED SEARCHES
-    # Open semantic search retrieves context much more intelligently without crashing
-    docs = vector_db.similarity_search(user_question, k=6)
+    # Smart Pre-Filtering Check
+    filters = extract_metadata_filters(user_question)
     
+    if filters:
+        print(f"🎯 Applying Strict Chroma Search Metadata Filter: {filters}")
+        # Search chunks using metadata tracking injection
+        docs = vector_db.similarity_search(user_question, k=6, filter=filters)
+    else:
+        docs = vector_db.similarity_search(user_question, k=6)
+        
     context_blocks = []
     citations = []
     for doc in docs:
@@ -98,15 +143,16 @@ def execute_pdf_pipeline(user_question):
     return "\n\n".join(context_blocks), list(set(citations))
 
 # --- ADVANCED TRI-MODE ROUTER ---
-
 def route_and_query(user_question):
     print("\n🧠 Agent is analyzing the query route...")
     
     router_prompt = f"""
     Route this query into exactly ONE of these three modes:
-    - 'SQL_ONLY': If the query requires mathematical calculations, metrics, counts, sums, or table data lookups.
-    - 'PDF_ONLY': If the query asks for qualitative text analysis, business strategy, risks, challenges or policies from documents.
-    - 'HYBRID': If the query combines both (requires database metrics AND document strategies).
+    - 'SQL_ONLY': If the query requires math calculations, metrics, counts, sums, or table data lookups.
+    - 'PDF_ONLY': If the query asks for qualitative text analysis, business strategy, risks, challenges or corporate policies from documents.
+    - 'HYBRID': If the query combines both.
+    
+    CRITICAL RULE: If the query asks for qualitative analysis like 'strategic drivers', 'risk factors', or 'roadmaps' without asking for exact numeric database transaction records, route strictly to 'PDF_ONLY'.
     
     Output ONLY one word: either 'SQL_ONLY', 'PDF_ONLY', or 'HYBRID'.
     User Question: {user_question}
@@ -133,18 +179,26 @@ def route_and_query(user_question):
                 "citations": None, "type": "SQL_ONLY", "sql": sql_query
             }
             
-        synthesis_prompt = f"Create a clear and concise financial summary from this data. Data: {db_res['data']}\nQuestion: {user_question}"
+        synthesis_prompt = f"Create a clear markdown financial summary table or statement from this data. Data: {db_res['data']}\nQuestion: {user_question}"
         final_ans = client.chat.completions.create(
             model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": synthesis_prompt}]
         ).choices[0].message.content
         return {"answer": final_ans, "citations": None, "type": "SQL_ONLY", "sql": sql_query}
 
-    # MODE 2: PURE PDF (RELAXED & INTELLIGENT)
+    # MODE 2: PURE PDF (ROBUST FILTER MATCHING)
     elif route_response == "PDF_ONLY":
         context, citations = execute_pdf_pipeline(user_question)
+        if not context.strip():
+            context = "Warning: Strict metadata match returned empty context. Loosening metadata constraints on the vector layer..."
+            # Auto fallback to broad search if strict filter was too tight
+            vector_db_clean = Chroma(persist_directory=CHROMA_PATH, embedding_function=embeddings)
+            fallback_docs = vector_db_clean.similarity_search(user_question, k=6)
+            context = "\n\n".join([d.page_content for d in fallback_docs])
+            citations = list(set([f"📄 Source: {os.path.basename(d.metadata.get('source', 'Doc.pdf'))} | Page: {d.metadata.get('page', 'N/A')}" for d in fallback_docs]))
+
         pdf_prompt = f"""
-        You are a helpful Financial AI Assistant. Synthesize a comprehensive answer using the corporate text context provided below. 
-        Be detailed, thorough, and structure your answer with clear bullet points.
+        You are an Elite Financial RAG Assistant. Synthesize a comprehensive answer using the text context provided below.
+        CRITICAL: Rely ONLY on the clear facts from the text. Do not invent details outside the provided years.
         
         Context:
         {context}
@@ -152,7 +206,7 @@ def route_and_query(user_question):
         Question: {user_question}
         """
         final_ans = client.chat.completions.create(
-            model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": pdf_prompt}], temperature=0.2
+            model="llama-3.3-70b-versatile", messages=[{"role": "user", "content": pdf_prompt}], temperature=0.1
         ).choices[0].message.content
         return {"answer": final_ans, "citations": citations, "type": "PDF_ONLY", "sql": None}
 
@@ -182,7 +236,7 @@ def route_and_query(user_question):
         final_ans = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[{"role": "user", "content": fusion_prompt}],
-            temperature=0.2
+            temperature=0.1
         ).choices[0].message.content
         
         return {"answer": final_ans, "citations": citations, "type": "HYBRID_FUSION", "sql": sql_query}
@@ -190,7 +244,7 @@ def route_and_query(user_question):
 # --- INTERACTIVE LOOP ---
 if __name__ == "__main__":
     print("\n============================================================")
-    print("🚀 TECHCORP SMART TRI-MODE AGENT (CLEAN & FLEXIBLE)")
+    print("🚀 TECHCORP SMART TRI-MODE AGENT (PORTFOLIO PRO EDITION)")
     print("============================================================")
     
     while True:
