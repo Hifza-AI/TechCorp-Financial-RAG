@@ -31,7 +31,7 @@ if not os.path.exists(DB_PATH):
 db = SQLDatabase.from_uri(f"sqlite:///{DB_PATH}")
 print("✅ LangChain connected to optimized SQLite Database.")
 
-# 2. Initialize Google Gemini LLM:
+# 2. Initialize Google Gemini LLM
 llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
 
 # 3. Custom System Prompt Definition
