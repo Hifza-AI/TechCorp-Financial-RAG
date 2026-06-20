@@ -10,7 +10,7 @@ api_key = os.getenv("GOOGLE_API_KEY")
 client = genai.Client(api_key=api_key)
 
 def get_sql_answer(user_query):
-    ### 1. AI ko database ka structure samjhana (Updated Prompt)
+    ## 1. AI ko database ka structure samjhana (Updated Prompt)
     prompt = f"""
     You are a Financial SQL Expert. 
     We have an SQLite database 'financial_data.db' with these tables and EXACT column names:
