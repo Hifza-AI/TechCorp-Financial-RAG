@@ -1,7 +1,7 @@
 import os
 import sqlite3
 
-# Paths Setup
+## Paths Setup
 BASE_DIR = r"C:\Users\riaze\Desktop\TechCorp-Financial-RAG"
 DB_PATH = os.path.join(BASE_DIR, "data", "csv", "financial_enterprise.db")
 
