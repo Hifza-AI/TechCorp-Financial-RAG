@@ -1,6 +1,10 @@
-# TechCorp Financial Enterprise RAG System 🏦🤖
+# Financial RAG MVP (Learning Phase)
 
-A production-ready, modular Retrieval-Augmented Generation (RAG) system built to handle high-volume financial data (PDFs) and database records with precision.
+This repository contains my first MVP implementation of a Financial RAG system.
+
+It was developed during my learning journey and is kept as a reference for future improvements.
+
+The final production-level Financial Hybrid RAG will be developed in a separate repository.
 
 ## 🌟 Project Vision
 The TechCorp Financial RAG is designed to solve the challenge of extracting actionable insights from massive enterprise financial datasets. Unlike simple RAG tutorials, this system is built on a Modular Architecture to handle hundreds of documents while maintaining low latency and high accuracy using state-of-the-art LLMs.
